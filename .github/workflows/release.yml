@@ -101,10 +101,21 @@ jobs:
         path: release-scripts
         persist-credentials: false
 
+    - name: Import GPG key
+      env:
+        GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+      run: |
+        if [ -n "$GPG_PRIVATE_KEY" ]; then
+          echo "$GPG_PRIVATE_KEY" | gpg --batch --import
+        else
+          echo "No GPG_PRIVATE_KEY secret provided; skipping import. Artifacts will not be signed."
+        fi
+
     - name: Release
       env:
         MAVEN_REPO_USERNAME: ${{ secrets.MAVEN_REPO_USERNAME }}
         MAVEN_REPO_API_KEY: ${{ secrets.MAVEN_REPO_API_KEY }}
+        MAVEN_GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
         RELEASE_VERSION: ${{ inputs.releaseVersion }}
         DEVELOPMENT_VERSION: ${{ inputs.developmentVersion }}
         SKIP_TESTS: ${{ inputs.skipTests }}
