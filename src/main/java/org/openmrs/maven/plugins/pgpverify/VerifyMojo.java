@@ -67,6 +67,14 @@ public class VerifyMojo extends AbstractMojo {
 	@Parameter
 	private List<Group> groups = new ArrayList<>();
 
+	/** Projects in the current reactor; their artifacts are never verified (not yet published). */
+	@Parameter(defaultValue = "${reactorProjects}", readonly = true)
+	private List<MavenProject> reactorProjects;
+
+	/** Verify SNAPSHOT artifacts too. Off by default - snapshots are typically unsigned. */
+	@Parameter(property = "openmrs.pgpverify.verifySnapshots", defaultValue = "false")
+	private boolean verifySnapshots;
+
 	/** Key server used to fetch public keys by id. */
 	@Parameter(property = "openmrs.pgpverify.keyServer", defaultValue = "https://keyserver.ubuntu.com")
 	private String keyServer;
@@ -91,6 +99,8 @@ public class VerifyMojo extends AbstractMojo {
 
 		SignatureVerifier verifier = new SignatureVerifier(new KeyServerClient(keyServer, getLog()));
 
+		Set<String> reactorKeys = reactorKeys();
+
 		List<String> errors = new ArrayList<>();
 		int checked = 0;
 
@@ -98,6 +108,12 @@ public class VerifyMojo extends AbstractMojo {
 			Set<String> allowed = allowedFingerprintsFor(artifact.getGroupId(), effectiveGroups);
 			if (allowed.isEmpty()) {
 				continue; // not whitelisted -> ignored, never failed
+			}
+			if (!verifySnapshots && artifact.isSnapshot()) {
+				continue; // snapshots are typically unsigned
+			}
+			if (reactorKeys.contains(reactorKey(artifact))) {
+				continue; // sibling module built in this reactor, not a published artifact
 			}
 
 			checked++;
@@ -138,6 +154,21 @@ public class VerifyMojo extends AbstractMojo {
 			throw new MojoFailureException("PGP signature verification failed for " + errors.size()
 					+ " artifact(s)");
 		}
+	}
+
+	private Set<String> reactorKeys() {
+		Set<String> keys = new HashSet<>();
+		if (reactorProjects != null) {
+			for (MavenProject reactorProject : reactorProjects) {
+				keys.add(reactorProject.getGroupId() + ":" + reactorProject.getArtifactId() + ":"
+						+ reactorProject.getVersion());
+			}
+		}
+		return keys;
+	}
+
+	private static String reactorKey(Artifact artifact) {
+		return artifact.getGroupId() + ":" + artifact.getArtifactId() + ":" + artifact.getBaseVersion();
 	}
 
 	private Set<String> allowedFingerprintsFor(String groupId, List<Group> grps) {
