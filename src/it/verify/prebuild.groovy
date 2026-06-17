@@ -65,7 +65,16 @@ if (fingerprint == null) {
 }
 println "[pgpverify-it] ephemeral signing key: 0x" + fingerprint
 
-// 2. dummy artifact + pom, detach-sign the jar
+// 2. dummy artifact + pom, detach-sign the jar.
+// The dependency is regenerated with a fresh key every run, so purge any copy a
+// previous run cached in the isolated local repository - otherwise the resolver
+// serves the stale .asc (old key) against this run's freshly exported key and
+// verification fails. `clean verify` wipes target/ and hides this; an incremental
+// `mvn verify` would not.
+File cached = new File(localRepositoryPath, "org/openmrs/ittest/signed-dep")
+if (cached.exists()) {
+	cached.deleteDir()
+}
 File repoDir = new File(fixtures, "repo/org/openmrs/ittest/signed-dep/1.0.0")
 repoDir.mkdirs()
 File jar = new File(repoDir, "signed-dep-1.0.0.jar")
