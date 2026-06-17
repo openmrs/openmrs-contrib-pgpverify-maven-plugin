@@ -31,9 +31,10 @@ import org.bouncycastle.util.encoders.Hex;
 
 /**
  * Verifies a detached PGP signature against an artifact and confirms the signing key is one of the
- * fingerprints trusted for the artifact's group. The public key material is fetched by key id from
- * a key server, then pinned: a fetched key is only trusted if its fingerprint (or that of its
- * master key) is in the allowed set, so the key server cannot substitute an unexpected key.
+ * fingerprints trusted for the artifact's group. The public key material is resolved by key id via a
+ * {@link PublicKeySource} (local key rings first, then an optional key server), then pinned: a
+ * resolved key is only trusted if its fingerprint (or that of its master key) is in the allowed set,
+ * so an untrusted key - including one substituted by a key server - is rejected.
  */
 class SignatureVerifier {
 
@@ -41,10 +42,10 @@ class SignatureVerifier {
 		java.security.Security.addProvider(new BouncyCastleProvider());
 	}
 
-	private final KeyServerClient keyServer;
+	private final PublicKeySource keySource;
 
-	SignatureVerifier(KeyServerClient keyServer) {
-		this.keyServer = keyServer;
+	SignatureVerifier(PublicKeySource keySource) {
+		this.keySource = keySource;
 	}
 
 	/**
@@ -55,10 +56,11 @@ class SignatureVerifier {
 		try {
 			PGPSignature signature = readSignature(signatureFile);
 
-			PGPPublicKeyRingCollection keyRings = keyServer.fetchKey(signature.getKeyID());
+			PGPPublicKeyRingCollection keyRings = keySource.resolve(signature.getKeyID());
 			if (keyRings == null) {
 				throw new VerificationException("signing key 0x"
-						+ String.format("%016X", signature.getKeyID()) + " not found on key server");
+						+ String.format("%016X", signature.getKeyID())
+						+ " not found in the configured key rings or key server");
 			}
 
 			PGPPublicKey signingKey = keyRings.getPublicKey(signature.getKeyID());
@@ -88,8 +90,11 @@ class SignatureVerifier {
 			}
 			return masterFingerprint;
 		}
-		catch (IOException | PGPException e) {
-			throw new VerificationException("verification error: " + e.getMessage());
+		catch (IOException e) {
+			throw new VerificationException("could not read artifact data for verification: " + e.getMessage(), e);
+		}
+		catch (PGPException e) {
+			throw new VerificationException("cryptographic verification error: " + e.getMessage(), e);
 		}
 	}
 

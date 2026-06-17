@@ -7,16 +7,10 @@
  * Copyright (C) OpenMRS Inc. OpenMRS is a registered trademark and the OpenMRS
  * graphic logo is a trademark of OpenMRS Inc.
  */
-package org.openmrs.maven.plugins.pgpverify;
 
-/** Thrown when an artifact's signature is missing, invalid, or made by an untrusted key. */
-class VerificationException extends Exception {
-
-	VerificationException(String message) {
-		super(message);
-	}
-
-	VerificationException(String message, Throwable cause) {
-		super(message, cause);
-	}
-}
+// A successful build is not enough: assert the signed dependency was actually
+// verified, so a regression that silently skips verification cannot pass.
+String log = new File(basedir, "build.log").text
+assert log.contains("OK   org.openmrs.ittest:signed-dep:1.0.0 signed by") :
+		"expected the signed dependency to be verified; build log:\n" + log
+return true

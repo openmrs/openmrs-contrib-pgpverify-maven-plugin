@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
+	<modelVersion>4.0.0</modelVersion>
+
+	<groupId>org.openmrs.maven.plugins.it</groupId>
+	<artifactId>verify-untrusted-it</artifactId>
+	<version>1.0.0</version>
+	<packaging>pom</packaging>
+	<name>openmrs-pgpverify verify untrusted-key IT</name>
+
+	<repositories>
+		<repository>
+			<id>it-untrusted-repo</id>
+			<url>file://${project.basedir}/it-fixtures/repo</url>
+			<releases>
+				<enabled>true</enabled>
+				<checksumPolicy>ignore</checksumPolicy>
+			</releases>
+		</repository>
+	</repositories>
+
+	<dependencies>
+		<dependency>
+			<groupId>org.openmrs.ittest</groupId>
+			<artifactId>untrusted-dep</artifactId>
+			<version>1.0.0</version>
+		</dependency>
+	</dependencies>
+
+	<build>
+		<plugins>
+			<plugin>
+				<groupId>org.openmrs.maven.plugins</groupId>
+				<artifactId>openmrs-pgpverify-maven-plugin</artifactId>
+				<version>@project.version@</version>
+				<configuration>
+					<keyServer></keyServer>
+					<keysFile>${project.basedir}/it-fixtures/keys.list</keysFile>
+					<keyRings>
+						<keyRing>${project.basedir}/it-fixtures/pubkey.asc</keyRing>
+					</keyRings>
+				</configuration>
+				<executions>
+					<execution>
+						<id>verify</id>
+						<phase>verify</phase>
+						<goals>
+							<goal>verify</goal>
+						</goals>
+					</execution>
+				</executions>
+			</plugin>
+		</plugins>
+	</build>
+</project>
