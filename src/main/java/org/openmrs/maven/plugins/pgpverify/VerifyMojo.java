@@ -10,6 +10,7 @@
 package org.openmrs.maven.plugins.pgpverify;
 
 import java.io.File;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
@@ -33,6 +34,8 @@ import org.eclipse.aether.repository.RemoteRepository;
 import org.eclipse.aether.resolution.ArtifactRequest;
 import org.eclipse.aether.resolution.ArtifactResolutionException;
 import org.eclipse.aether.resolution.ArtifactResult;
+import org.eclipse.aether.transfer.ArtifactNotFoundException;
+import org.bouncycastle.openpgp.PGPException;
 
 /**
  * Verifies PGP signatures of resolved dependencies for a whitelist of groupIds.
@@ -67,6 +70,21 @@ public class VerifyMojo extends AbstractMojo {
 	@Parameter
 	private List<Group> groups = new ArrayList<>();
 
+	/**
+	 * Location (file path or http(s) URL) of an external keys file mapping groupIds to allowed key
+	 * fingerprints, so the trusted key can be rotated without recompiling. Format, one per line:
+	 * {@code groupId = 0xFINGERPRINT[, 0xFINGERPRINT...]}. Merged with any inline {@link #groups}.
+	 */
+	@Parameter(property = "openmrs.pgpverify.keysFile")
+	private String keysFile;
+
+	/**
+	 * File paths or http(s) URLs of public key rings to verify against. Consulted before the key
+	 * server, enabling offline verification. When a key is found here the key server is not used.
+	 */
+	@Parameter
+	private List<String> keyRings = new ArrayList<>();
+
 	/** Projects in the current reactor; their artifacts are never verified (not yet published). */
 	@Parameter(defaultValue = "${reactorProjects}", readonly = true)
 	private List<MavenProject> reactorProjects;
@@ -93,11 +111,37 @@ public class VerifyMojo extends AbstractMojo {
 			return;
 		}
 
-		List<Group> effectiveGroups = groups.isEmpty()
-				? Collections.singletonList(new Group(OPENMRS_GROUP, OPENMRS_BOT_KEY))
-				: groups;
+		List<Group> effectiveGroups = new ArrayList<>(groups);
+		if (keysFile != null && !keysFile.trim().isEmpty()) {
+			try {
+				effectiveGroups.addAll(KeysFile.load(keysFile.trim()));
+			}
+			catch (IOException e) {
+				throw new MojoExecutionException("Failed to load keys file: " + keysFile, e);
+			}
+		}
+		if (effectiveGroups.isEmpty()) {
+			effectiveGroups = Collections.singletonList(new Group(OPENMRS_GROUP, OPENMRS_BOT_KEY));
+		}
 
-		SignatureVerifier verifier = new SignatureVerifier(new KeyServerClient(keyServer, getLog()));
+		KeyServerClient keyServerClient = (keyServer == null || keyServer.trim().isEmpty())
+				? null
+				: new KeyServerClient(keyServer.trim(), getLog());
+
+		boolean noKeyRings = keyRings == null
+				|| keyRings.stream().allMatch(ring -> ring == null || ring.trim().isEmpty());
+		if (noKeyRings && keyServerClient == null) {
+			throw new MojoExecutionException(
+					"No PGP key source configured: set the keyServer and/or keyRings parameters");
+		}
+
+		SignatureVerifier verifier;
+		try {
+			verifier = new SignatureVerifier(new PublicKeySource(keyRings, keyServerClient, getLog()));
+		}
+		catch (IOException | PGPException e) {
+			throw new MojoExecutionException("Failed to load PGP key rings", e);
+		}
 
 		Set<String> reactorKeys = reactorKeys();
 
@@ -125,7 +169,16 @@ public class VerifyMojo extends AbstractMojo {
 				continue;
 			}
 
-			File asc = resolveSignature(artifact);
+			File asc;
+			try {
+				asc = resolveSignature(artifact);
+			}
+			catch (ArtifactResolutionException e) {
+				// Could not determine signature state (network, server error, ...); never treat this
+				// as "unsigned" - that would let a transient failure pass verification silently.
+				errors.add(coords + " - could not resolve PGP signature: " + e.getMessage());
+				continue;
+			}
 			if (asc == null) {
 				String message = coords + " - no PGP signature (.asc) found";
 				if (failOnMissingSignature) {
@@ -182,7 +235,13 @@ public class VerifyMojo extends AbstractMojo {
 		return result;
 	}
 
-	private File resolveSignature(Artifact artifact) {
+	/**
+	 * @return the resolved {@code .asc} file, or {@code null} if the signature genuinely does not
+	 *         exist in any repository
+	 * @throws ArtifactResolutionException if resolution failed for any other reason (network, server
+	 *         error, ...), which must not be mistaken for an absent signature
+	 */
+	private File resolveSignature(Artifact artifact) throws ArtifactResolutionException {
 		String classifier = artifact.getClassifier() == null ? "" : artifact.getClassifier();
 		DefaultArtifact signatureArtifact = new DefaultArtifact(artifact.getGroupId(), artifact.getArtifactId(),
 				classifier, artifact.getType() + ".asc", artifact.getVersion());
@@ -194,7 +253,28 @@ public class VerifyMojo extends AbstractMojo {
 			return result.getArtifact().getFile();
 		}
 		catch (ArtifactResolutionException e) {
-			return null;
+			if (isGenuinelyMissing(e)) {
+				return null;
+			}
+			throw e;
 		}
+	}
+
+	/** True only when every failure was an "artifact not found", i.e. the signature does not exist. */
+	private static boolean isGenuinelyMissing(ArtifactResolutionException e) {
+		if (e.getResults() == null) {
+			return false;
+		}
+		for (ArtifactResult result : e.getResults()) {
+			if (result.getExceptions().isEmpty()) {
+				return false;
+			}
+			for (Throwable cause : result.getExceptions()) {
+				if (!(cause instanceof ArtifactNotFoundException)) {
+					return false;
+				}
+			}
+		}
+		return true;
 	}
 }

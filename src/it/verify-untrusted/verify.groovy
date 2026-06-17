@@ -7,16 +7,10 @@
  * Copyright (C) OpenMRS Inc. OpenMRS is a registered trademark and the OpenMRS
  * graphic logo is a trademark of OpenMRS Inc.
  */
-package org.openmrs.maven.plugins.pgpverify;
 
-/** Thrown when an artifact's signature is missing, invalid, or made by an untrusted key. */
-class VerificationException extends Exception {
-
-	VerificationException(String message) {
-		super(message);
-	}
-
-	VerificationException(String message, Throwable cause) {
-		super(message, cause);
-	}
-}
+// The build must fail for the right reason: an untrusted signing key, not some
+// unrelated error that would also trip invoker.buildResult = failure.
+String log = new File(basedir, "build.log").text
+assert log.contains("untrusted key") :
+		"expected the build to fail because of an untrusted signing key; build log:\n" + log
+return true
