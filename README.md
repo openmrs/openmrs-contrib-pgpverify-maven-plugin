@@ -59,6 +59,31 @@ path or `https` URL.
 | `verifySnapshots` | `openmrs.pgpverify.verifySnapshots` | `false` | Verify SNAPSHOT artifacts too. |
 | `skip` | `openmrs.pgpverify.skip` | `false` | Skip the check. |
 
+## Verifying files obtained outside dependency resolution
+
+The `verify` goal inspects the resolved dependency tree. Tools that download artifacts
+themselves — for example the OpenMRS SDK, which fetches modules and WARs into a distribution
+directory — can instead invoke the `verify-files` goal with an explicit list of artifacts, and
+let the plugin own the trust check rather than re-implementing it. Each `<artifact>` gives the
+local file plus the Maven coordinates used to resolve its `.asc` signature (the shape mirrors
+the maven-dependency-plugin's `artifactItems`):
+
+```xml
+<artifacts>
+    <artifact>
+        <file>/path/to/xforms-omod-5.0.0.jar</file>
+        <groupId>org.openmrs.module</groupId>
+        <artifactId>xforms-omod</artifactId>
+        <version>5.0.0</version>
+        <type>jar</type>          <!-- classifier optional; type defaults to jar -->
+    </artifact>
+</artifacts>
+```
+
+`verify-files` is not bound to a lifecycle phase — invoke it explicitly. It shares every
+key-source parameter, default, and the same whitelist/pinning behaviour with `verify`; the only
+difference is where the artifacts come from.
+
 ## How it verifies
 
 For each whitelisted artifact it resolves the `.asc`, reads the signing key id, and finds that public
