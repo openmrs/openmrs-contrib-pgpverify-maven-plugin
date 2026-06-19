@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
+	<modelVersion>4.0.0</modelVersion>
+
+	<groupId>org.openmrs.maven.plugins.it</groupId>
+	<artifactId>verify-files-it</artifactId>
+	<version>1.0.0</version>
+	<packaging>pom</packaging>
+	<name>openmrs-pgpverify verify-files IT</name>
+
+	<!-- The signed dummy artifact prebuild.groovy laid out under it-fixtures/repo. -->
+	<repositories>
+		<repository>
+			<id>it-signed-repo</id>
+			<url>file://${project.basedir}/it-fixtures/repo</url>
+			<releases>
+				<enabled>true</enabled>
+				<checksumPolicy>ignore</checksumPolicy>
+			</releases>
+		</repository>
+	</repositories>
+
+	<!-- No <dependencies>: the artifact is handed to verify-files by path, not resolved as a dependency. -->
+
+	<build>
+		<plugins>
+			<plugin>
+				<groupId>org.openmrs.maven.plugins</groupId>
+				<artifactId>openmrs-pgpverify-maven-plugin</artifactId>
+				<version>@project.version@</version>
+				<configuration>
+					<!-- Verify offline: configuring keyRings suppresses the key server default. -->
+					<keysFile>${project.basedir}/it-fixtures/keys.list</keysFile>
+					<keyRings>
+						<keyRing>${project.basedir}/it-fixtures/pubkey.asc</keyRing>
+					</keyRings>
+					<artifacts>
+						<artifact>
+							<file>${project.basedir}/it-fixtures/repo/org/openmrs/ittest/signed-dep/1.0.0/signed-dep-1.0.0.jar</file>
+							<groupId>org.openmrs.ittest</groupId>
+							<artifactId>signed-dep</artifactId>
+							<version>1.0.0</version>
+							<type>jar</type>
+						</artifact>
+					</artifacts>
+				</configuration>
+				<executions>
+					<execution>
+						<id>verify-files</id>
+						<phase>verify</phase>
+						<goals>
+							<goal>verify-files</goal>
+						</goals>
+					</execution>
+				</executions>
+			</plugin>
+		</plugins>
+	</build>
+</project>
