@@ -54,7 +54,7 @@ path or `https` URL.
 | `groups` | — | `org.openmrs` → Bot key | Whitelisted groupIds and their allowed fingerprints. |
 | `keysFile` | `openmrs.pgpverify.keysFile` | — | External keys file (local path or `https` URL); merged with `groups`. |
 | `keyRings` | — | — | Public key rings (paths or http(s) URLs) consulted before the key server; enables offline verification. |
-| `keyServer` | `openmrs.pgpverify.keyServer` | `https://keyserver.ubuntu.com` | Where keys are fetched by id (blank to disable). |
+| `keyServer` | `openmrs.pgpverify.keyServer` | `https://keyserver.ubuntu.com`, unless `keyRings` is set | Where keys are fetched by id. Defaults to the public server only when no `keyRings` are configured, so supplying key rings verifies offline automatically. Set explicitly to use both, or blank to disable. |
 | `failOnMissingSignature` | `openmrs.pgpverify.failOnMissingSignature` | `true` | Fail when a whitelisted artifact has no `.asc`. |
 | `verifySnapshots` | `openmrs.pgpverify.verifySnapshots` | `false` | Verify SNAPSHOT artifacts too. |
 | `skip` | `openmrs.pgpverify.skip` | `false` | Skip the check. |

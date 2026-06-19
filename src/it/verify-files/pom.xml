@@ -29,8 +29,7 @@
 				<artifactId>openmrs-pgpverify-maven-plugin</artifactId>
 				<version>@project.version@</version>
 				<configuration>
-					<!-- Verify offline against the exported key only; no key server. -->
-					<keyServer></keyServer>
+					<!-- Verify offline: configuring keyRings suppresses the key server default. -->
 					<keysFile>${project.basedir}/it-fixtures/keys.list</keysFile>
 					<keyRings>
 						<keyRing>${project.basedir}/it-fixtures/pubkey.asc</keyRing>

@@ -51,6 +51,8 @@ abstract class AbstractVerifyMojo extends AbstractMojo {
 
 	static final String OPENMRS_BOT_KEY = "0xCA12619FDE8CD6A93FAFE458A6F9608DCC73473F";
 
+	static final String DEFAULT_KEY_SERVER = "https://keyserver.ubuntu.com";
+
 	@Parameter(defaultValue = "${project}", readonly = true, required = true)
 	protected MavenProject project;
 
@@ -86,8 +88,13 @@ abstract class AbstractVerifyMojo extends AbstractMojo {
 	@Parameter(property = "openmrs.pgpverify.verifySnapshots", defaultValue = "false")
 	protected boolean verifySnapshots;
 
-	/** Key server used to fetch public keys by id. */
-	@Parameter(property = "openmrs.pgpverify.keyServer", defaultValue = "https://keyserver.ubuntu.com")
+	/**
+	 * Key server used to fetch public keys by id. When left unset it defaults to
+	 * {@value #DEFAULT_KEY_SERVER}, except when {@link #keyRings} are configured - supplying local
+	 * key rings suppresses the default so verification stays offline. Set it explicitly to use a
+	 * different server (e.g. alongside key rings as a fallback), or set it to blank to disable.
+	 */
+	@Parameter(property = "openmrs.pgpverify.keyServer")
 	protected String keyServer;
 
 	/** Fail when a whitelisted artifact has no {@code .asc} signature. */
@@ -154,12 +161,21 @@ abstract class AbstractVerifyMojo extends AbstractMojo {
 	}
 
 	private SignatureVerifier buildVerifier() throws MojoExecutionException {
-		KeyServerClient keyServerClient = (keyServer == null || keyServer.trim().isEmpty())
-				? null
-				: new KeyServerClient(keyServer.trim(), getLog());
-
 		boolean noKeyRings = keyRings == null
 				|| keyRings.stream().allMatch(ring -> ring == null || ring.trim().isEmpty());
+
+		// When keyServer is unset (null), default to the public server only if no local key rings
+		// were configured - supplying key rings keeps verification offline without having to blank
+		// keyServer. An explicit blank value disables the server regardless of key rings.
+		String effectiveKeyServer = keyServer;
+		if (effectiveKeyServer == null) {
+			effectiveKeyServer = noKeyRings ? DEFAULT_KEY_SERVER : null;
+		}
+
+		KeyServerClient keyServerClient = (effectiveKeyServer == null || effectiveKeyServer.trim().isEmpty())
+				? null
+				: new KeyServerClient(effectiveKeyServer.trim(), getLog());
+
 		if (noKeyRings && keyServerClient == null) {
 			throw new MojoExecutionException(
 					"No PGP key source configured: set the keyServer and/or keyRings parameters");
