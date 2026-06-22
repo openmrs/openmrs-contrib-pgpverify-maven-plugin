@@ -120,6 +120,8 @@ jobs:
         DEVELOPMENT_VERSION: ${{ inputs.developmentVersion }}
         SKIP_TESTS: ${{ inputs.skipTests }}
       run: |
+        MAVEN_HOME="$(mvn -v 2>/dev/null | grep 'Maven home:' | sed 's/Maven home: //')"
+        export MAVEN_HOME
         args=(-e "git@github.com:${GITHUB_REPOSITORY}.git" -r "${RELEASE_VERSION}")
         if [[ -n "${DEVELOPMENT_VERSION}" ]]; then
           args+=(-d "${DEVELOPMENT_VERSION}")
