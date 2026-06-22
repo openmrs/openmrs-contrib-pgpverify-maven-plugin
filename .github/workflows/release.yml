@@ -1,132 +1,32 @@
 name: Release
 
-# Releases org.openmrs.maven.plugins:openmrs-pgpverify-maven-plugin using
-# maven-release-plugin via the shared OpenMRS release script: strips -SNAPSHOT,
-# tags and deploys the release version, then commits the next dev version.
-
 on:
   workflow_dispatch:
     inputs:
-      releaseVersion:
-        description: 'Release version (semver, e.g. 1.0.0)'
+      release_version:
+        description: 'Release version (e.g., 1.3.3)'
         required: true
-        type: string
-      developmentVersion:
-        description: 'Next development version (e.g. 1.1.0-SNAPSHOT); leave blank to let the release script derive it'
+      development_version:
+        description: 'Next development version (e.g., 1.4.0-SNAPSHOT)'
+        required: true
+      branch:
+        description: 'Branch to release from (e.g., main)'
         required: false
-        type: string
-        default: ''
-      skipTests:
-        description: 'Skip tests during the release build'
-        required: false
-        type: boolean
-        default: true
-
-concurrency:
-  group: ${{ github.workflow }}
-  cancel-in-progress: false
+        default: 'main'
 
 jobs:
   release:
-    runs-on: ubuntu-latest
-
+    uses: openmrs/openmrs-contrib-gha-workflows/.github/workflows/release-backend-module.yml@main
     permissions:
-      contents: read
-
-    steps:
-    - name: Generate release bot token
-      id: app-token
-      uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
-      with:
-        app-id: ${{ secrets.OMRS_RELEASE_BOT_APP_ID }}
-        private-key: ${{ secrets.OMRS_RELEASE_BOT_PRIVATE_KEY }}
-
-    - name: Checkout
-      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-      with:
-        fetch-depth: 0
-        token: ${{ steps.app-token.outputs.token }}
-        persist-credentials: false
-
-    - name: Resolve bot identity
-      id: bot
-      env:
-        GH_TOKEN: ${{ steps.app-token.outputs.token }}
-        APP_SLUG: ${{ steps.app-token.outputs.app-slug }}
-      run: |
-        user_id="$(gh api "/users/${APP_SLUG}[bot]" --jq .id)"
-        echo "user-id=${user_id}" >> "$GITHUB_OUTPUT"
-
-    - name: Configure git
-      env:
-        BOT_TOKEN: ${{ steps.app-token.outputs.token }}
-        APP_SLUG: ${{ steps.app-token.outputs.app-slug }}
-        BOT_USER_ID: ${{ steps.bot.outputs.user-id }}
-      run: |
-        git config --global user.name "${APP_SLUG}[bot]"
-        git config --global user.email "${BOT_USER_ID}+${APP_SLUG}[bot]@users.noreply.github.com"
-        git config --global url."https://x-access-token:${BOT_TOKEN}@github.com/".insteadOf "git@github.com:"
-
-    - name: Setup JDK
-      uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654 # v5.0.2
-      with:
-        distribution: 'zulu'
-        cache: 'maven'
-        java-version: '17'
-
-    - name: Configure Maven settings
-      run: |
-        mkdir -p ~/.m2
-        cat > ~/.m2/settings.xml <<'EOF'
-        <settings>
-          <servers>
-            <server>
-              <id>openmrs-repo-releases</id>
-              <username>${env.MAVEN_REPO_USERNAME}</username>
-              <password>${env.MAVEN_REPO_API_KEY}</password>
-            </server>
-            <server>
-              <id>openmrs-repo-snapshots</id>
-              <username>${env.MAVEN_REPO_USERNAME}</username>
-              <password>${env.MAVEN_REPO_API_KEY}</password>
-            </server>
-          </servers>
-        </settings>
-        EOF
-
-    - name: Checkout release scripts
-      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-      with:
-        repository: openmrs/openmrs-contrib-bamboo
-        path: release-scripts
-        persist-credentials: false
-
-    - name: Import GPG key
-      env:
-        GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
-      run: |
-        if [ -n "$GPG_PRIVATE_KEY" ]; then
-          echo "$GPG_PRIVATE_KEY" | gpg --batch --import
-        else
-          echo "No GPG_PRIVATE_KEY secret provided; skipping import. Artifacts will not be signed."
-        fi
-
-    - name: Release
-      env:
-        MAVEN_REPO_USERNAME: ${{ secrets.MAVEN_REPO_USERNAME }}
-        MAVEN_REPO_API_KEY: ${{ secrets.MAVEN_REPO_API_KEY }}
-        MAVEN_GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
-        RELEASE_VERSION: ${{ inputs.releaseVersion }}
-        DEVELOPMENT_VERSION: ${{ inputs.developmentVersion }}
-        SKIP_TESTS: ${{ inputs.skipTests }}
-      run: |
-        MAVEN_HOME="$(mvn -v 2>/dev/null | grep 'Maven home:' | sed 's/Maven home: //')"
-        export MAVEN_HOME
-        args=(-e "git@github.com:${GITHUB_REPOSITORY}.git" -r "${RELEASE_VERSION}")
-        if [[ -n "${DEVELOPMENT_VERSION}" ]]; then
-          args+=(-d "${DEVELOPMENT_VERSION}")
-        fi
-        if [[ "${SKIP_TESTS}" == "true" ]]; then
-          args+=(-s)
-        fi
-        bash release-scripts/release-prepare-perform.sh "${args[@]}"
+      contents: write
+    with:
+      release_version: ${{ inputs.release_version }}
+      development_version: ${{ inputs.development_version }}
+      branch: ${{ inputs.branch }}
+    secrets:
+      MAVEN_REPO_USERNAME: ${{ secrets.MAVEN_REPO_USERNAME }}
+      MAVEN_REPO_API_KEY: ${{ secrets.MAVEN_REPO_API_KEY }}
+      APP_ID: ${{ secrets.OMRS_RELEASE_BOT_APP_ID }}
+      APP_PRIVATE_KEY: ${{ secrets.OMRS_RELEASE_BOT_PRIVATE_KEY }}
+      GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+      GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
