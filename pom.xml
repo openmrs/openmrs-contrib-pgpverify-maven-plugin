@@ -4,7 +4,7 @@
 
 	<groupId>org.openmrs.maven.plugins</groupId>
 	<artifactId>openmrs-pgpverify-maven-plugin</artifactId>
-	<version>1.0.0</version>
+	<version>1.0.1-SNAPSHOT</version>
 	<packaging>maven-plugin</packaging>
 	<name>OpenMRS PGP Verify Maven Plugin</name>
 	<description>Verifies the PGP signatures of resolved dependencies, but only for a whitelist of
@@ -28,7 +28,7 @@
 		<connection>scm:git:git@github.com:openmrs/openmrs-contrib-pgpverify-maven-plugin.git</connection>
 		<developerConnection>scm:git:git@github.com:openmrs/openmrs-contrib-pgpverify-maven-plugin.git</developerConnection>
 		<url>https://github.com/openmrs/openmrs-contrib-pgpverify-maven-plugin</url>
-		<tag>1.0.0</tag>
+		<tag>HEAD</tag>
 	</scm>
 
 	<distributionManagement>
