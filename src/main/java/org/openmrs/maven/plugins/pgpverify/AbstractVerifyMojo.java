@@ -97,13 +97,30 @@ abstract class AbstractVerifyMojo extends AbstractMojo {
 	@Parameter(property = "openmrs.pgpverify.keyServer")
 	protected String keyServer;
 
-	/** Fail when a whitelisted artifact has no {@code .asc} signature. */
+	/**
+	 * Fail when a whitelisted artifact is genuinely unsigned - no {@code .asc} exists in the
+	 * repositories consulted (a 404). This flag governs only that case. Transport/resolution errors
+	 * (network, 5xx, timeout) always fail regardless, as does a present-but-cryptographically-invalid
+	 * signature.
+	 */
 	@Parameter(property = "openmrs.pgpverify.failOnMissingSignature", defaultValue = "true")
 	protected boolean failOnMissingSignature;
 
 	/** Skip execution entirely. */
 	@Parameter(property = "openmrs.pgpverify.skip", defaultValue = "false")
 	protected boolean skip;
+
+	/**
+	 * Repository the {@code .asc} signatures are resolved from. When blank (the default) the full
+	 * project repository list is used. Set it to a single repository - e.g. the canonical OpenMRS
+	 * repo - so an unrelated or flaky mirror in that list cannot gate verification: a tool that only
+	 * ever verifies OpenMRS artifacts (such as the OpenMRS SDK) can point this at the one repo those
+	 * signatures live in. The repository is synthesized with a fixed id, so id-keyed
+	 * {@code settings.xml} authentication does not apply - point it at a public/unauthenticated host
+	 * (host-based auth and wildcard mirrors still apply).
+	 */
+	@Parameter(property = "openmrs.pgpverify.signatureRepository")
+	protected String signatureRepository;
 
 	public final void execute() throws MojoExecutionException, MojoFailureException {
 		if (skip) {
@@ -201,18 +218,17 @@ abstract class AbstractVerifyMojo extends AbstractMojo {
 			asc = resolveSignature(ref);
 		}
 		catch (ArtifactResolutionException e) {
-			// Could not determine signature state (network, server error, ...); never treat this
-			// as "unsigned" - that would let a transient failure pass verification silently.
+			// Could not determine whether a signature exists (network/5xx/timeout). Never treat this
+			// as "unsigned" - a transient or attacker-induced transport failure must not pass
+			// verification silently. Scoping resolution to a single repository (signatureRepository)
+			// keeps an unrelated flaky mirror from reaching here in the first place.
 			errors.add(ref.coords + " - could not resolve PGP signature: " + e.getMessage());
 			return;
 		}
 		if (asc == null) {
-			String message = ref.coords + " - no PGP signature (.asc) found";
-			if (failOnMissingSignature) {
-				errors.add(message);
-			} else {
-				getLog().warn(message);
-			}
+			// Genuinely unsigned: no .asc exists (a 404 from the signature repository). Tolerated only
+			// when the caller opts out of requiring signatures.
+			tolerateOrFail(ref.coords + " - no PGP signature (.asc) found", errors);
 			return;
 		}
 
@@ -222,6 +238,14 @@ abstract class AbstractVerifyMojo extends AbstractMojo {
 		}
 		catch (VerificationException e) {
 			errors.add(ref.coords + " - " + e.getMessage());
+		}
+	}
+
+	private void tolerateOrFail(String message, List<String> errors) {
+		if (failOnMissingSignature) {
+			errors.add(message);
+		} else {
+			getLog().warn(message);
 		}
 	}
 
@@ -238,7 +262,7 @@ abstract class AbstractVerifyMojo extends AbstractMojo {
 
 	/**
 	 * @return the resolved {@code .asc} file, or {@code null} if the signature genuinely does not
-	 *         exist in any repository
+	 *         exist in the repositories consulted (a 404)
 	 * @throws ArtifactResolutionException if resolution failed for any other reason (network, server
 	 *         error, ...), which must not be mistaken for an absent signature
 	 */
@@ -247,8 +271,7 @@ abstract class AbstractVerifyMojo extends AbstractMojo {
 		DefaultArtifact signatureArtifact = new DefaultArtifact(ref.groupId, ref.artifactId,
 				classifier, ref.type + ".asc", ref.version);
 
-		List<RemoteRepository> repositories = project.getRemoteProjectRepositories();
-		ArtifactRequest request = new ArtifactRequest(signatureArtifact, repositories, null);
+		ArtifactRequest request = new ArtifactRequest(signatureArtifact, signatureRepositories(), null);
 		try {
 			ArtifactResult result = repoSystem.resolveArtifact(repoSession, request);
 			return result.getArtifact().getFile();
@@ -261,9 +284,37 @@ abstract class AbstractVerifyMojo extends AbstractMojo {
 		}
 	}
 
+	/**
+	 * The repositories to resolve signatures from. Scoped to {@link #signatureRepository} when set,
+	 * so a flaky or unrelated mirror in the project's repository list cannot gate verification (the
+	 * root cause of transport errors on signatures that are simply absent). Falls back to the full
+	 * project repository list when blank.
+	 */
+	private List<RemoteRepository> signatureRepositories() {
+		if (signatureRepository == null || signatureRepository.trim().isEmpty()) {
+			return project.getRemoteProjectRepositories();
+		}
+		RemoteRepository repo = new RemoteRepository.Builder("openmrs-signatures", "default",
+				signatureRepository.trim()).build();
+		if (repoSession.getMirrorSelector() != null) {
+			RemoteRepository mirror = repoSession.getMirrorSelector().getMirror(repo);
+			if (mirror != null) {
+				repo = mirror;
+			}
+		}
+		RemoteRepository.Builder builder = new RemoteRepository.Builder(repo);
+		if (repoSession.getProxySelector() != null) {
+			builder.setProxy(repoSession.getProxySelector().getProxy(repo));
+		}
+		if (repoSession.getAuthenticationSelector() != null) {
+			builder.setAuthentication(repoSession.getAuthenticationSelector().getAuthentication(repo));
+		}
+		return Collections.singletonList(builder.build());
+	}
+
 	/** True only when every failure was an "artifact not found", i.e. the signature does not exist. */
 	private static boolean isGenuinelyMissing(ArtifactResolutionException e) {
-		if (e.getResults() == null) {
+		if (e.getResults() == null || e.getResults().isEmpty()) {
 			return false;
 		}
 		for (ArtifactResult result : e.getResults()) {

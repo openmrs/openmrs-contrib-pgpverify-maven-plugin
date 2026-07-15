@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
+	<modelVersion>4.0.0</modelVersion>
+
+	<groupId>org.openmrs.maven.plugins.it</groupId>
+	<artifactId>verify-skips-unsigned-it</artifactId>
+	<version>1.0.0</version>
+	<packaging>pom</packaging>
+	<name>openmrs-pgpverify verify skips-unsigned IT</name>
+
+	<!-- The whitelisted but unsigned dependency prebuild.groovy laid out under it-fixtures/repo. -->
+	<repositories>
+		<repository>
+			<id>it-skips-unsigned-repo</id>
+			<url>file://${project.basedir}/it-fixtures/repo</url>
+			<releases>
+				<enabled>true</enabled>
+				<checksumPolicy>ignore</checksumPolicy>
+			</releases>
+		</repository>
+	</repositories>
+
+	<dependencies>
+		<dependency>
+			<groupId>org.openmrs.ittest</groupId>
+			<artifactId>unsigned-dep</artifactId>
+			<version>1.0.0</version>
+		</dependency>
+	</dependencies>
+
+	<build>
+		<plugins>
+			<plugin>
+				<groupId>org.openmrs.maven.plugins</groupId>
+				<artifactId>openmrs-pgpverify-maven-plugin</artifactId>
+				<version>@project.version@</version>
+				<configuration>
+					<!-- Opting out of requiring signatures: the whitelisted dependency is genuinely
+						 unsigned (a 404 for its .asc), so with failOnMissingSignature=false the build
+						 must succeed with a skip. The key ring only satisfies the key-source precondition.
+						 signatureRepository is scoped to the fixture repo so the .asc lookup gives a clean
+						 404 regardless of any repositories in the ambient settings.xml. -->
+					<failOnMissingSignature>false</failOnMissingSignature>
+					<signatureRepository>file://${project.basedir}/it-fixtures/repo</signatureRepository>
+					<keyServer></keyServer>
+					<keysFile>${project.basedir}/it-fixtures/keys.list</keysFile>
+					<keyRings>
+						<keyRing>${project.basedir}/it-fixtures/pubkey.asc</keyRing>
+					</keyRings>
+				</configuration>
+				<executions>
+					<execution>
+						<id>verify</id>
+						<phase>verify</phase>
+						<goals>
+							<goal>verify</goal>
+						</goals>
+					</execution>
+				</executions>
+			</plugin>
+		</plugins>
+	</build>
+</project>

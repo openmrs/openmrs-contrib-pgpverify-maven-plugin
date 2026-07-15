@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
+	<modelVersion>4.0.0</modelVersion>
+
+	<groupId>org.openmrs.maven.plugins.it</groupId>
+	<artifactId>verify-transport-error-it</artifactId>
+	<version>1.0.0</version>
+	<packaging>pom</packaging>
+	<name>openmrs-pgpverify verify transport-error IT</name>
+
+	<!-- The whitelisted dependency prebuild.groovy laid out under it-fixtures/repo. The artifact
+		 itself resolves from here; only the .asc lookup is redirected to an unreachable repo. -->
+	<repositories>
+		<repository>
+			<id>it-transport-error-repo</id>
+			<url>file://${project.basedir}/it-fixtures/repo</url>
+			<releases>
+				<enabled>true</enabled>
+				<checksumPolicy>ignore</checksumPolicy>
+			</releases>
+		</repository>
+	</repositories>
+
+	<dependencies>
+		<dependency>
+			<groupId>org.openmrs.ittest</groupId>
+			<artifactId>transport-dep</artifactId>
+			<version>1.0.0</version>
+		</dependency>
+	</dependencies>
+
+	<build>
+		<plugins>
+			<plugin>
+				<groupId>org.openmrs.maven.plugins</groupId>
+				<artifactId>openmrs-pgpverify-maven-plugin</artifactId>
+				<version>@project.version@</version>
+				<configuration>
+					<!-- A transport error resolving the .asc must fail the build even though the caller
+						 opted out of requiring signatures (failOnMissingSignature=false). signatureRepository
+						 points at an unreachable port so the lookup fails with a connection error, not a 404. -->
+					<failOnMissingSignature>false</failOnMissingSignature>
+					<signatureRepository>http://127.0.0.1:1/</signatureRepository>
+					<keyServer></keyServer>
+					<keysFile>${project.basedir}/it-fixtures/keys.list</keysFile>
+					<keyRings>
+						<keyRing>${project.basedir}/it-fixtures/pubkey.asc</keyRing>
+					</keyRings>
+				</configuration>
+				<executions>
+					<execution>
+						<id>verify</id>
+						<phase>verify</phase>
+						<goals>
+							<goal>verify</goal>
+						</goals>
+					</execution>
+				</executions>
+			</plugin>
+		</plugins>
+	</build>
+</project>

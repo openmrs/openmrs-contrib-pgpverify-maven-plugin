@@ -55,7 +55,8 @@ path or `https` URL.
 | `keysFile` | `openmrs.pgpverify.keysFile` | — | External keys file (local path or `https` URL); merged with `groups`. |
 | `keyRings` | — | — | Public key rings (paths or http(s) URLs) consulted before the key server; enables offline verification. |
 | `keyServer` | `openmrs.pgpverify.keyServer` | `https://keyserver.ubuntu.com`, unless `keyRings` is set | Where keys are fetched by id. Defaults to the public server only when no `keyRings` are configured, so supplying key rings verifies offline automatically. Set explicitly to use both, or blank to disable. |
-| `failOnMissingSignature` | `openmrs.pgpverify.failOnMissingSignature` | `true` | Fail when a whitelisted artifact has no `.asc`. |
+| `failOnMissingSignature` | `openmrs.pgpverify.failOnMissingSignature` | `true` | Fail when a whitelisted artifact is genuinely unsigned (no `.asc`, a 404). When `false`, unsigned artifacts are logged and skipped. Transport/resolution errors (network, 5xx, timeout) always fail regardless, as does a present-but-invalid signature. |
+| `signatureRepository` | `openmrs.pgpverify.signatureRepository` | — (full project repository list) | Repository the `.asc` signatures are resolved from. Set it to a single repo (e.g. the canonical OpenMRS repo) so an unrelated or flaky mirror in the project's list cannot gate verification. |
 | `verifySnapshots` | `openmrs.pgpverify.verifySnapshots` | `false` | Verify SNAPSHOT artifacts too. |
 | `skip` | `openmrs.pgpverify.skip` | `false` | Skip the check. |
 
