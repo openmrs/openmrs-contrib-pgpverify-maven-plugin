@@ -97,12 +97,7 @@ abstract class AbstractVerifyMojo extends AbstractMojo {
 	@Parameter(property = "openmrs.pgpverify.keyServer")
 	protected String keyServer;
 
-	/**
-	 * Fail when a whitelisted artifact is genuinely unsigned - no {@code .asc} exists in the
-	 * repositories consulted (a 404). This flag governs only that case. Transport/resolution errors
-	 * (network, 5xx, timeout) always fail regardless, as does a present-but-cryptographically-invalid
-	 * signature.
-	 */
+	/** Fail when a whitelisted artifact has no {@code .asc} signature. */
 	@Parameter(property = "openmrs.pgpverify.failOnMissingSignature", defaultValue = "true")
 	protected boolean failOnMissingSignature;
 
@@ -112,12 +107,7 @@ abstract class AbstractVerifyMojo extends AbstractMojo {
 
 	/**
 	 * Repository the {@code .asc} signatures are resolved from. When blank (the default) the full
-	 * project repository list is used. Set it to a single repository - e.g. the canonical OpenMRS
-	 * repo - so an unrelated or flaky mirror in that list cannot gate verification: a tool that only
-	 * ever verifies OpenMRS artifacts (such as the OpenMRS SDK) can point this at the one repo those
-	 * signatures live in. The repository is synthesized with a fixed id, so id-keyed
-	 * {@code settings.xml} authentication does not apply - point it at a public/unauthenticated host
-	 * (host-based auth and wildcard mirrors still apply).
+	 * project repository list is used.
 	 */
 	@Parameter(property = "openmrs.pgpverify.signatureRepository")
 	protected String signatureRepository;
@@ -218,17 +208,18 @@ abstract class AbstractVerifyMojo extends AbstractMojo {
 			asc = resolveSignature(ref);
 		}
 		catch (ArtifactResolutionException e) {
-			// Could not determine whether a signature exists (network/5xx/timeout). Never treat this
-			// as "unsigned" - a transient or attacker-induced transport failure must not pass
-			// verification silently. Scoping resolution to a single repository (signatureRepository)
-			// keeps an unrelated flaky mirror from reaching here in the first place.
+			// Could not determine signature state (network, server error, ...); never treat this
+			// as "unsigned" - that would let a transient failure pass verification silently.
 			errors.add(ref.coords + " - could not resolve PGP signature: " + e.getMessage());
 			return;
 		}
 		if (asc == null) {
-			// Genuinely unsigned: no .asc exists (a 404 from the signature repository). Tolerated only
-			// when the caller opts out of requiring signatures.
-			tolerateOrFail(ref.coords + " - no PGP signature (.asc) found", errors);
+			String message = ref.coords + " - no PGP signature (.asc) found";
+			if (failOnMissingSignature) {
+				errors.add(message);
+			} else {
+				getLog().warn(message);
+			}
 			return;
 		}
 
@@ -238,14 +229,6 @@ abstract class AbstractVerifyMojo extends AbstractMojo {
 		}
 		catch (VerificationException e) {
 			errors.add(ref.coords + " - " + e.getMessage());
-		}
-	}
-
-	private void tolerateOrFail(String message, List<String> errors) {
-		if (failOnMissingSignature) {
-			errors.add(message);
-		} else {
-			getLog().warn(message);
 		}
 	}
 
@@ -262,7 +245,7 @@ abstract class AbstractVerifyMojo extends AbstractMojo {
 
 	/**
 	 * @return the resolved {@code .asc} file, or {@code null} if the signature genuinely does not
-	 *         exist in the repositories consulted (a 404)
+	 *         exist in the repositories consulted
 	 * @throws ArtifactResolutionException if resolution failed for any other reason (network, server
 	 *         error, ...), which must not be mistaken for an absent signature
 	 */
@@ -285,10 +268,8 @@ abstract class AbstractVerifyMojo extends AbstractMojo {
 	}
 
 	/**
-	 * The repositories to resolve signatures from. Scoped to {@link #signatureRepository} when set,
-	 * so a flaky or unrelated mirror in the project's repository list cannot gate verification (the
-	 * root cause of transport errors on signatures that are simply absent). Falls back to the full
-	 * project repository list when blank.
+	 * The repositories to resolve signatures from: {@link #signatureRepository} when set, otherwise
+	 * the full project repository list.
 	 */
 	private List<RemoteRepository> signatureRepositories() {
 		if (signatureRepository == null || signatureRepository.trim().isEmpty()) {
