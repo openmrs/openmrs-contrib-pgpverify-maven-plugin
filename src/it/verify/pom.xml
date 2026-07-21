@@ -37,6 +37,10 @@
 				<configuration>
 					<!-- Verify offline against the exported key only; no key server. -->
 					<keyServer></keyServer>
+					<!-- Resolve the .asc through a scoped signatureRepository so the happy path
+					     (signature exists, resolves, verifies) is exercised, not just the 404/transport
+					     failures the other ITs cover. -->
+					<signatureRepository>file://${project.basedir}/it-fixtures/repo</signatureRepository>
 					<keysFile>${project.basedir}/it-fixtures/keys.list</keysFile>
 					<keyRings>
 						<keyRing>${project.basedir}/it-fixtures/pubkey.asc</keyRing>

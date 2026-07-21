@@ -21,11 +21,11 @@ import org.apache.maven.plugins.annotations.Parameter;
  *
  * <p>Unlike the {@code verify} goal - which inspects the resolved dependency tree - this goal
  * verifies the {@link #artifacts} it is handed, resolving each {@code .asc} signature from the
- * project's remote repositories. It is meant for tools that obtain artifacts outside Maven's
- * dependency resolution (for example the OpenMRS SDK, which downloads modules and WARs into a
- * distribution directory) and want to delegate the trust check rather than re-implement it. The
- * goal is not bound to a lifecycle phase; invoke it explicitly. All key-source configuration and
- * defaults are shared with {@code verify}.
+ * project's remote repositories (or from {@code signatureRepository} when set). It is meant for
+ * tools that obtain artifacts outside Maven's dependency resolution (for example the OpenMRS SDK,
+ * which downloads modules and WARs into a distribution directory) and want to delegate the trust
+ * check rather than re-implement it. The goal is not bound to a lifecycle phase; invoke it
+ * explicitly. All key-source configuration and defaults are shared with {@code verify}.
  */
 @Mojo(name = "verify-files", threadSafe = true)
 public class VerifyFilesMojo extends AbstractVerifyMojo {

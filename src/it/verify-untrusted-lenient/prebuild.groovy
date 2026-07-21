@@ -16,7 +16,7 @@
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
 
-File gpgHome = new File(System.getProperty("java.io.tmpdir"), "omrs-pgpverify-it-untrusted-lenient-gpg")
+File gpgHome = new File(System.getProperty("java.io.tmpdir"), "omrs-pgpverify-it-untrusted-gpg")
 if (gpgHome.exists()) {
 	gpgHome.deleteDir()
 }
