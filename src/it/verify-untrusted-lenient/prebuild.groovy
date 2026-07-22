@@ -8,18 +8,15 @@
  * graphic logo is a trademark of OpenMRS Inc.
  */
 
-// Missing-signature gate: a WHITELISTED dependency is laid out with no detached
-// signature (.asc). With failOnMissingSignature at its default (true), the build
-// must fail. An ephemeral key is exported only to provide a valid key ring and
-// satisfy the plugin's "a key source must be configured" precondition; because
-// there is no signature, no key is ever looked up.
+// Negative path with the opt-out flag on: an ephemeral key signs the dependency and
+// its real public key is supplied so the key resolves, but the keys file pins a
+// DIFFERENT fingerprint. Verification must reject it as untrusted and fail the build
+// even though failOnMissingSignature=false - a trust failure is not a "missing" one.
 
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
 
-// gpg-agent's socket path (homedir + /S.gpg-agent...) must stay under the
-// ~104 char AF_UNIX limit, so keep GNUPGHOME short by using the temp dir.
-File gpgHome = new File(System.getProperty("java.io.tmpdir"), "omrs-pgpverify-it-missing-gpg")
+File gpgHome = new File(System.getProperty("java.io.tmpdir"), "omrs-pgpverify-it-untrusted-gpg")
 if (gpgHome.exists()) {
 	gpgHome.deleteDir()
 }
@@ -38,18 +35,15 @@ def gpg = { List<String> args ->
 	return out.toString()
 }
 
-// Fixtures live outside target/ so `mvn clean verify` does not delete them
-// between this pre-build script and the verification.
 File fixtures = new File(basedir, "it-fixtures")
 fixtures.mkdirs()
 
-// Ephemeral key (no passphrase) - only to provide a valid key ring.
 File batch = new File(fixtures, "gen-key.batch")
 batch.text = """%no-protection
 Key-Type: RSA
 Key-Length: 2048
-Name-Real: OpenMRS PGPVerify Missing-Signature IT
-Name-Email: missing-it@example.org
+Name-Real: OpenMRS PGPVerify Untrusted-Lenient IT
+Name-Email: untrusted-lenient-it@example.org
 Expire-Date: 0
 %commit
 """
@@ -65,27 +59,33 @@ if (fingerprint == null) {
 	throw new RuntimeException("could not determine generated key fingerprint")
 }
 
-// Whitelisted dummy artifact + pom, but deliberately NO detached signature.
-File repoDir = new File(fixtures, "repo/org/openmrs/ittest/unsigned-dep/1.0.0")
+// Purge any copy a previous run cached in the isolated local repository, so the
+// resolver does not serve a stale .asc against this run's freshly exported key.
+File cached = new File(localRepositoryPath, "org/openmrs/ittest/untrusted-lenient-dep")
+if (cached.exists()) {
+	cached.deleteDir()
+}
+File repoDir = new File(fixtures, "repo/org/openmrs/ittest/untrusted-lenient-dep/1.0.0")
 repoDir.mkdirs()
-File jar = new File(repoDir, "unsigned-dep-1.0.0.jar")
+File jar = new File(repoDir, "untrusted-lenient-dep-1.0.0.jar")
 new ZipOutputStream(new FileOutputStream(jar)).withCloseable { zos ->
 	zos.putNextEntry(new ZipEntry("META-INF/MANIFEST.MF"))
 	zos.write("Manifest-Version: 1.0\n".getBytes("UTF-8"))
 	zos.closeEntry()
 }
-new File(repoDir, "unsigned-dep-1.0.0.pom").text = """<project>
+new File(repoDir, "untrusted-lenient-dep-1.0.0.pom").text = """<project>
 	<modelVersion>4.0.0</modelVersion>
 	<groupId>org.openmrs.ittest</groupId>
-	<artifactId>unsigned-dep</artifactId>
+	<artifactId>untrusted-lenient-dep</artifactId>
 	<version>1.0.0</version>
 	<packaging>jar</packaging>
 </project>
 """
+gpg(["--local-user", fingerprint, "--armor", "--detach-sign",
+     "--output", new File(repoDir, "untrusted-lenient-dep-1.0.0.jar.asc").absolutePath, jar.absolutePath])
 
-// Export the public key (key ring) and whitelist the dependency's group, so the
-// artifact is checked and fails on the absent signature rather than being ignored.
+// Export the real key (so it resolves) but pin a different fingerprint (so it is untrusted).
 gpg(["--armor", "--export", "--output", new File(fixtures, "pubkey.asc").absolutePath, fingerprint])
-new File(fixtures, "keys.list").text = "org.openmrs.ittest = 0x" + fingerprint + "\n"
+new File(fixtures, "keys.list").text = "org.openmrs.ittest = 0xDEADBEEFDEADBEEFDEADBEEFDEADBEEFDEADBEEF\n"
 
 return true

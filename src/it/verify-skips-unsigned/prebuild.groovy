@@ -8,18 +8,15 @@
  * graphic logo is a trademark of OpenMRS Inc.
  */
 
-// Missing-signature gate: a WHITELISTED dependency is laid out with no detached
-// signature (.asc). With failOnMissingSignature at its default (true), the build
-// must fail. An ephemeral key is exported only to provide a valid key ring and
-// satisfy the plugin's "a key source must be configured" precondition; because
-// there is no signature, no key is ever looked up.
+// Opt-out skip path: a WHITELISTED dependency is laid out with no detached
+// signature (.asc). With failOnMissingSignature=false the build must succeed,
+// logging that the signature was not found. An ephemeral key is exported only to
+// provide a valid key ring and satisfy the plugin's key-source precondition.
 
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
 
-// gpg-agent's socket path (homedir + /S.gpg-agent...) must stay under the
-// ~104 char AF_UNIX limit, so keep GNUPGHOME short by using the temp dir.
-File gpgHome = new File(System.getProperty("java.io.tmpdir"), "omrs-pgpverify-it-missing-gpg")
+File gpgHome = new File(System.getProperty("java.io.tmpdir"), "omrs-pgpverify-it-skips-gpg")
 if (gpgHome.exists()) {
 	gpgHome.deleteDir()
 }
@@ -38,18 +35,15 @@ def gpg = { List<String> args ->
 	return out.toString()
 }
 
-// Fixtures live outside target/ so `mvn clean verify` does not delete them
-// between this pre-build script and the verification.
 File fixtures = new File(basedir, "it-fixtures")
 fixtures.mkdirs()
 
-// Ephemeral key (no passphrase) - only to provide a valid key ring.
 File batch = new File(fixtures, "gen-key.batch")
 batch.text = """%no-protection
 Key-Type: RSA
 Key-Length: 2048
-Name-Real: OpenMRS PGPVerify Missing-Signature IT
-Name-Email: missing-it@example.org
+Name-Real: OpenMRS PGPVerify Skips-Unsigned IT
+Name-Email: skips-it@example.org
 Expire-Date: 0
 %commit
 """
@@ -65,7 +59,6 @@ if (fingerprint == null) {
 	throw new RuntimeException("could not determine generated key fingerprint")
 }
 
-// Whitelisted dummy artifact + pom, but deliberately NO detached signature.
 File repoDir = new File(fixtures, "repo/org/openmrs/ittest/unsigned-dep/1.0.0")
 repoDir.mkdirs()
 File jar = new File(repoDir, "unsigned-dep-1.0.0.jar")
@@ -83,8 +76,6 @@ new File(repoDir, "unsigned-dep-1.0.0.pom").text = """<project>
 </project>
 """
 
-// Export the public key (key ring) and whitelist the dependency's group, so the
-// artifact is checked and fails on the absent signature rather than being ignored.
 gpg(["--armor", "--export", "--output", new File(fixtures, "pubkey.asc").absolutePath, fingerprint])
 new File(fixtures, "keys.list").text = "org.openmrs.ittest = 0x" + fingerprint + "\n"
 

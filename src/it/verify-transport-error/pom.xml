@@ -3,15 +3,16 @@
 	<modelVersion>4.0.0</modelVersion>
 
 	<groupId>org.openmrs.maven.plugins.it</groupId>
-	<artifactId>verify-it</artifactId>
+	<artifactId>verify-transport-error-it</artifactId>
 	<version>1.0.0</version>
 	<packaging>pom</packaging>
-	<name>openmrs-pgpverify verify IT</name>
+	<name>openmrs-pgpverify verify transport-error IT</name>
 
-	<!-- The signed dummy dependency prebuild.groovy laid out under it-fixtures/repo. -->
+	<!-- The whitelisted dependency prebuild.groovy laid out under it-fixtures/repo. The artifact
+		 itself resolves from here; only the .asc lookup is redirected to an unreachable repo. -->
 	<repositories>
 		<repository>
-			<id>it-signed-repo</id>
+			<id>it-transport-error-repo</id>
 			<url>file://${project.basedir}/it-fixtures/repo</url>
 			<releases>
 				<enabled>true</enabled>
@@ -23,7 +24,7 @@
 	<dependencies>
 		<dependency>
 			<groupId>org.openmrs.ittest</groupId>
-			<artifactId>signed-dep</artifactId>
+			<artifactId>transport-dep</artifactId>
 			<version>1.0.0</version>
 		</dependency>
 	</dependencies>
@@ -35,12 +36,12 @@
 				<artifactId>openmrs-pgpverify-maven-plugin</artifactId>
 				<version>@project.version@</version>
 				<configuration>
-					<!-- Verify offline against the exported key only; no key server. -->
+					<!-- A transport error resolving the .asc must fail the build even though the caller
+						 opted out of requiring signatures (failOnMissingSignature=false). signatureRepository
+						 points at an unreachable port so the lookup fails with a connection error, not a 404. -->
+					<failOnMissingSignature>false</failOnMissingSignature>
+					<signatureRepository>http://127.0.0.1:1/</signatureRepository>
 					<keyServer></keyServer>
-					<!-- Resolve the .asc through a scoped signatureRepository so the happy path
-					     (signature exists, resolves, verifies) is exercised, not just the 404/transport
-					     failures the other ITs cover. -->
-					<signatureRepository>file://${project.basedir}/it-fixtures/repo</signatureRepository>
 					<keysFile>${project.basedir}/it-fixtures/keys.list</keysFile>
 					<keyRings>
 						<keyRing>${project.basedir}/it-fixtures/pubkey.asc</keyRing>

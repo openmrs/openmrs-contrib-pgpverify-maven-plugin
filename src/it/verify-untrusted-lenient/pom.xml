@@ -3,15 +3,14 @@
 	<modelVersion>4.0.0</modelVersion>
 
 	<groupId>org.openmrs.maven.plugins.it</groupId>
-	<artifactId>verify-it</artifactId>
+	<artifactId>verify-untrusted-lenient-it</artifactId>
 	<version>1.0.0</version>
 	<packaging>pom</packaging>
-	<name>openmrs-pgpverify verify IT</name>
+	<name>openmrs-pgpverify verify untrusted-key (lenient) IT</name>
 
-	<!-- The signed dummy dependency prebuild.groovy laid out under it-fixtures/repo. -->
 	<repositories>
 		<repository>
-			<id>it-signed-repo</id>
+			<id>it-untrusted-lenient-repo</id>
 			<url>file://${project.basedir}/it-fixtures/repo</url>
 			<releases>
 				<enabled>true</enabled>
@@ -23,7 +22,7 @@
 	<dependencies>
 		<dependency>
 			<groupId>org.openmrs.ittest</groupId>
-			<artifactId>signed-dep</artifactId>
+			<artifactId>untrusted-lenient-dep</artifactId>
 			<version>1.0.0</version>
 		</dependency>
 	</dependencies>
@@ -35,12 +34,11 @@
 				<artifactId>openmrs-pgpverify-maven-plugin</artifactId>
 				<version>@project.version@</version>
 				<configuration>
-					<!-- Verify offline against the exported key only; no key server. -->
+					<!-- failOnMissingSignature=false must NOT rescue a present-but-untrusted signature:
+						 a cryptographic/trust failure is a VerificationException and always hard-fails,
+						 independent of the missing-signature policy. -->
+					<failOnMissingSignature>false</failOnMissingSignature>
 					<keyServer></keyServer>
-					<!-- Resolve the .asc through a scoped signatureRepository so the happy path
-					     (signature exists, resolves, verifies) is exercised, not just the 404/transport
-					     failures the other ITs cover. -->
-					<signatureRepository>file://${project.basedir}/it-fixtures/repo</signatureRepository>
 					<keysFile>${project.basedir}/it-fixtures/keys.list</keysFile>
 					<keyRings>
 						<keyRing>${project.basedir}/it-fixtures/pubkey.asc</keyRing>

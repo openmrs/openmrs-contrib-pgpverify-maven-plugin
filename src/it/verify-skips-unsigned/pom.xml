@@ -3,15 +3,15 @@
 	<modelVersion>4.0.0</modelVersion>
 
 	<groupId>org.openmrs.maven.plugins.it</groupId>
-	<artifactId>verify-it</artifactId>
+	<artifactId>verify-skips-unsigned-it</artifactId>
 	<version>1.0.0</version>
 	<packaging>pom</packaging>
-	<name>openmrs-pgpverify verify IT</name>
+	<name>openmrs-pgpverify verify skips-unsigned IT</name>
 
-	<!-- The signed dummy dependency prebuild.groovy laid out under it-fixtures/repo. -->
+	<!-- The whitelisted but unsigned dependency prebuild.groovy laid out under it-fixtures/repo. -->
 	<repositories>
 		<repository>
-			<id>it-signed-repo</id>
+			<id>it-skips-unsigned-repo</id>
 			<url>file://${project.basedir}/it-fixtures/repo</url>
 			<releases>
 				<enabled>true</enabled>
@@ -23,7 +23,7 @@
 	<dependencies>
 		<dependency>
 			<groupId>org.openmrs.ittest</groupId>
-			<artifactId>signed-dep</artifactId>
+			<artifactId>unsigned-dep</artifactId>
 			<version>1.0.0</version>
 		</dependency>
 	</dependencies>
@@ -35,12 +35,14 @@
 				<artifactId>openmrs-pgpverify-maven-plugin</artifactId>
 				<version>@project.version@</version>
 				<configuration>
-					<!-- Verify offline against the exported key only; no key server. -->
-					<keyServer></keyServer>
-					<!-- Resolve the .asc through a scoped signatureRepository so the happy path
-					     (signature exists, resolves, verifies) is exercised, not just the 404/transport
-					     failures the other ITs cover. -->
+					<!-- Opting out of requiring signatures: the whitelisted dependency is genuinely
+						 unsigned (a 404 for its .asc), so with failOnMissingSignature=false the build
+						 must succeed with a skip. The key ring only satisfies the key-source precondition.
+						 signatureRepository is scoped to the fixture repo so the .asc lookup gives a clean
+						 404 regardless of any repositories in the ambient settings.xml. -->
+					<failOnMissingSignature>false</failOnMissingSignature>
 					<signatureRepository>file://${project.basedir}/it-fixtures/repo</signatureRepository>
+					<keyServer></keyServer>
 					<keysFile>${project.basedir}/it-fixtures/keys.list</keysFile>
 					<keyRings>
 						<keyRing>${project.basedir}/it-fixtures/pubkey.asc</keyRing>

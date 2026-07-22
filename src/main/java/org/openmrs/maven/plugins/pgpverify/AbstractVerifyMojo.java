@@ -105,6 +105,13 @@ abstract class AbstractVerifyMojo extends AbstractMojo {
 	@Parameter(property = "openmrs.pgpverify.skip", defaultValue = "false")
 	protected boolean skip;
 
+	/**
+	 * Repository the {@code .asc} signatures are resolved from. When blank (the default) the full
+	 * project repository list is used.
+	 */
+	@Parameter(property = "openmrs.pgpverify.signatureRepository")
+	protected String signatureRepository;
+
 	public final void execute() throws MojoExecutionException, MojoFailureException {
 		if (skip) {
 			getLog().info("Skipping PGP verification (openmrs.pgpverify.skip=true)");
@@ -238,7 +245,7 @@ abstract class AbstractVerifyMojo extends AbstractMojo {
 
 	/**
 	 * @return the resolved {@code .asc} file, or {@code null} if the signature genuinely does not
-	 *         exist in any repository
+	 *         exist in the repositories consulted
 	 * @throws ArtifactResolutionException if resolution failed for any other reason (network, server
 	 *         error, ...), which must not be mistaken for an absent signature
 	 */
@@ -247,8 +254,7 @@ abstract class AbstractVerifyMojo extends AbstractMojo {
 		DefaultArtifact signatureArtifact = new DefaultArtifact(ref.groupId, ref.artifactId,
 				classifier, ref.type + ".asc", ref.version);
 
-		List<RemoteRepository> repositories = project.getRemoteProjectRepositories();
-		ArtifactRequest request = new ArtifactRequest(signatureArtifact, repositories, null);
+		ArtifactRequest request = new ArtifactRequest(signatureArtifact, signatureRepositories(), null);
 		try {
 			ArtifactResult result = repoSystem.resolveArtifact(repoSession, request);
 			return result.getArtifact().getFile();
@@ -261,9 +267,22 @@ abstract class AbstractVerifyMojo extends AbstractMojo {
 		}
 	}
 
+	/**
+	 * The repositories to resolve signatures from: {@link #signatureRepository} when set, otherwise
+	 * the full project repository list.
+	 */
+	private List<RemoteRepository> signatureRepositories() {
+		if (signatureRepository == null || signatureRepository.trim().isEmpty()) {
+			return project.getRemoteProjectRepositories();
+		}
+		RemoteRepository repo = new RemoteRepository.Builder("openmrs-signatures", "default",
+				signatureRepository.trim()).build();
+		return repoSystem.newResolutionRepositories(repoSession, Collections.singletonList(repo));
+	}
+
 	/** True only when every failure was an "artifact not found", i.e. the signature does not exist. */
 	private static boolean isGenuinelyMissing(ArtifactResolutionException e) {
-		if (e.getResults() == null) {
+		if (e.getResults() == null || e.getResults().isEmpty()) {
 			return false;
 		}
 		for (ArtifactResult result : e.getResults()) {
