@@ -277,20 +277,7 @@ abstract class AbstractVerifyMojo extends AbstractMojo {
 		}
 		RemoteRepository repo = new RemoteRepository.Builder("openmrs-signatures", "default",
 				signatureRepository.trim()).build();
-		if (repoSession.getMirrorSelector() != null) {
-			RemoteRepository mirror = repoSession.getMirrorSelector().getMirror(repo);
-			if (mirror != null) {
-				repo = mirror;
-			}
-		}
-		RemoteRepository.Builder builder = new RemoteRepository.Builder(repo);
-		if (repoSession.getProxySelector() != null) {
-			builder.setProxy(repoSession.getProxySelector().getProxy(repo));
-		}
-		if (repoSession.getAuthenticationSelector() != null) {
-			builder.setAuthentication(repoSession.getAuthenticationSelector().getAuthentication(repo));
-		}
-		return Collections.singletonList(builder.build());
+		return repoSystem.newResolutionRepositories(repoSession, Collections.singletonList(repo));
 	}
 
 	/** True only when every failure was an "artifact not found", i.e. the signature does not exist. */
