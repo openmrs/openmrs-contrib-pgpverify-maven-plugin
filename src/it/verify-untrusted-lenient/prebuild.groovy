@@ -28,8 +28,7 @@ def gpg = { List<String> args ->
 	List<String> cmd = ["gpg", "--homedir", gpgHome.absolutePath, "--batch", "--yes"] + args
 	Process p = cmd.execute()
 	StringBuilder out = new StringBuilder(), err = new StringBuilder()
-	p.consumeProcessOutput(out, err)
-	p.waitFor()
+	p.waitForProcessOutput(out, err)
 	if (p.exitValue() != 0) {
 		throw new RuntimeException("gpg " + args + " failed:\n" + err)
 	}
